@@ -15,14 +15,16 @@
 
 * * *
 ## 更新信息
-2024.2.16 v1.1.3 1. Support v2rayN V6.33 Tuic and Hysteria2 protocol URLs; 2. Add DNS module to adapt Sing-box V1.9.0-alpha.8; 3. Reconstruct the installation protocol, add delete protocols and protocol export module, each parameter is more refined. ( Reinstall is required ); 4. Remove obfs obfuscation from Hysteria2; 1. 支持 v2rayN V6.33 Tuic 和 Hysteria2 协议 URL; 2. 增加 DNS 模块以适配 Sing-box V1.9.0-alpha.8; 3. 重构安装协议，增加删除协议及协议输出模块，各参数更精细 (需要重新安装); 4. 去掉 Hysteria2 的 obfs 混淆
+2024.3.4 v1.1.4 Support V2rayN / Nekobox / Clash / sing-box / Shadowrocket subscribe. http://<server ip>:<nginx port>/<uuid>/<qr | clash | neko | proxies | shadowrocket | sing-box-pc | sing-box-phone | v2rayn>. Index of all subscribes: http://<server ip>:<nginx port>/<uuid>/  . Reinstall is required; 增加 V2rayN / Nekobox / Clash / sing-box / Shadowrocket 订阅，http://<server ip>:<nginx port>/<uuid>/<qr | clash | neko | proxies | shadowrocket | sing-box-pc | sing-box-phone | v2rayn>， 所有订阅的索引: http://<server ip>:<nginx port>/<uuid>/，需要重新安装
 
-2023.12.25 v1.1.2 1. support Sing-box 1.8.0 latest Rule Set and Experimental; 2. api.openai.com routes to WARP IPv4, other openai websites routes to WARP IPv6; 3. Start port changes to 100; 1. 支持 Sing-box 1.8.0 最新的 Rule Set 和 Experimental; 2. api.openai.com 分流到 WARP IPv4， 其他 openai 网站分流到 WARP IPv6; 3. 开始端口改为 100
+2024.2.16 v1.1.3 1. Support v2rayN V6.33 Tuic and Hysteria2 protocol URLs; 2. Add DNS module to adapt Sing-box V1.9.0-alpha.8; 3. Reconstruct the installation protocol, add delete protocols and protocol export module, each parameter is more refined. ( Reinstall is required ); 4. Remove obfs obfuscation from Hysteria2; 1. 支持 v2rayN V6.33 Tuic 和 Hysteria2 协议 URL; 2. 增加 DNS 模块以适配 Sing-box V1.9.0-alpha.8; 3. 重构安装协议，增加删除协议及协议输出模块，各参数更精细 (需要重新安装); 4. 去掉 Hysteria2 的 obfs 混淆
 
 <details>
     <summary>历史更新 history（点击即可展开或收起）</summary>
 <br>
 
+>2023.12.25 v1.1.2 1. support Sing-box 1.8.0 latest Rule Set and Experimental; 2. api.openai.com routes to WARP IPv4, other openai websites routes to WARP IPv6; 3. Start port changes to 100; 1. 支持 Sing-box 1.8.0 最新的 Rule Set 和 Experimental; 2. api.openai.com 分流到 WARP IPv4， 其他 openai 网站分流到 WARP IPv6; 3. 开始端口改为 100
+>
 >2023.11.21 v1.1.1 1. XTLS + REALITY remove flow: xtls-reality-vision to support multiplexing and TCP brutal (requires reinstallation); 2. Clash meta add multiplexing parameter. 1. XTLS + REALITY 去掉 xtls-reality-vision 流控以支持多路复用和 TCP brutal (需要重新安装); 2. Clash meta 增加多路复用参数
 >
 >2023.11.17 v1.1.0 1. Add [ H2 + Reality ] and [ gRPC + Reality ]. Reinstall is required; 2. Use beta verion instead of alpha; 3. Support TCP brutal and add the official install script; 1. 增加 [ H2 + Reality ] 和 [ gRPC + Reality ]，需要重新安装; 2. 由于 Sing-box 更新极快，将使用 beta 版本替代 alpha 3. 支持 TCP brutal，并提供官方安装脚本
@@ -121,9 +123,16 @@ bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/sing-box/main/sing-b
 |   `-- 18_VLESS_WS_inbounds.json            # vless + ws + tls 协议配置文件
 |-- logs
 |   `-- box.log                              # sing-box 运行日志文件
+|-- subscribe                                # sing-box server 配置文件目录
+|   |-- qr                                   # Nekoray / V2rayN / Shadowrock 订阅二维码
+|   |-- shadowrocket                         # Shadowrock 订阅文件
+|   |-- proxies                              # Clash proxy provider 订阅文件
+|   |-- clash                                # Clash 订阅文件
+|   |-- sing-box-pc                          # SFM 订阅文件
+|   |-- sing-box-phone                       # SFI 订阅文件
+|   |-- v2rayn                               # V2rayN 订阅文件
+|   `--  neko                                # Nekoray 订阅文件
 |-- cache.db                                 # sing-box 缓存文件
-|-- geosite.db                               # 用于基于域名或网站分类来进行访问控制、内容过滤或安全策略
-|-- geoip.db                                 # 用于根据 IP 地址来进行地理位置策略或访问控制
 |-- language                                 # 存放脚本语言文件，E 为英文，C 为中文
 |-- list                                     # 节点信息列表
 |-- sing-box                                 # sing-box 主程序

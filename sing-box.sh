@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 
 # 当前脚本版本号
-VERSION='v1.1.3'
+VERSION='v1.1.4'
 
 # 各变量默认值
-GH_PROXY='cdn2.cloudflare.now.cc/https://'
+GH_PROXY='https://cdn2.cloudflare.now.cc/'
 TEMP_DIR='/tmp/sing-box'
 WORK_DIR='/etc/sing-box'
 START_PORT_DEFAULT='8881'
 MIN_PORT=100
 MAX_PORT=65520
 TLS_SERVER_DEFAULT=addons.mozilla.org
-CDN_DEFAULT=cn.azhz.eu.org
 PROTOCOL_LIST=("XTLS + reality" "hysteria2" "tuic" "ShadowTLS" "shadowsocks" "trojan" "vmess + ws" "vless + ws + tls" "H2 + reality" "gRPC + reality")
 NODE_TAG=("xtls-reality" "hysteria2" "tuic" "ShadowTLS" "shadowsocks" "trojan" "vmess-ws" "vless-ws-tls" "h2-reality" "grpc-reality")
 CONSECUTIVE_PORTS=${#PROTOCOL_LIST[@]}
 CDN_DOMAIN=("cn.azhz.eu.org" "www.who.int" "skk.moe" "time.cloudflare.com" "csgo.com")
+SUBSCRIBE_TEMPLATE="https://raw.githubusercontent.com/fscarmen/client_template/main"
 
 trap "rm -rf $TEMP_DIR >/dev/null 2>&1 ; echo -e '\n' ;exit 1" INT QUIT TERM EXIT
 
@@ -23,8 +23,8 @@ mkdir -p $TEMP_DIR
 
 E[0]="Language:\n 1. English (default) \n 2. 简体中文"
 C[0]="${E[0]}"
-E[1]="1. Support v2rayN V6.33 Tuic and Hysteria2 protocol URLs; 2. Add DNS module to adapt Sing-box V1.9.0-alpha.8; 3. Reconstruct the installation protocol, add delete protocols and protocol export module, each parameter is more refined. ( Reinstall is required ); 4. Remove obfs obfuscation from Hysteria2."
-C[1]="1. 支持 v2rayN V6.33 Tuic 和 Hysteria2 协议 URL; 2. 增加 DNS 模块以适配 Sing-box V1.9.0-alpha.8; 3. 重构安装协议，增加删除协议及协议输出模块，各参数更精细 (需要重新安装); 4. 去掉 Hysteria2 的 obfs 混淆"
+E[1]="Support V2rayN / Nekobox / Clash / sing-box / Shadowrocket subscribe. http://<server ip>:<nginx port>/<uuid>/<qr | clash | neko | proxies | shadowrocket | sing-box-pc | sing-box-phone | v2rayn>. Index of all subscribes: http://<server ip>:<nginx port>/<uuid>/  . Reinstall is required"
+C[1]="增加 V2rayN / Nekobox / Clash / sing-box / Shadowrocket 订阅，http://<server ip>:<nginx port>/<uuid>/<qr | clash | neko | proxies | shadowrocket | sing-box-pc | sing-box-phone | v2rayn>， 所有订阅的索引: http://<server ip>:<nginx port>/<uuid>/，需要重新安装"
 E[2]="This project is designed to add sing-box support for multiple protocols to VPS, details: [https://github.com/fscarmen/sing-box]\n Script Features:\n\t • Deploy multiple protocols with one click, there is always one for you!\n\t • Custom ports for nat machine with limited open ports.\n\t • Built-in warp chained proxy to unlock chatGPT.\n\t • No domain name is required.\n\t • Support system: Ubuntu, Debian, CentOS, Alpine and Arch Linux 3.\n\t • Support architecture: AMD,ARM and s390x\n"
 C[2]="本项目专为 VPS 添加 sing-box 支持的多种协议, 详细说明: [https://github.com/fscarmen/sing-box]\n 脚本特点:\n\t • 一键部署多协议，总有一款适合你\n\t • 自定义端口，适合有限开放端口的 nat 小鸡\n\t • 内置 warp 链式代理解锁 chatGPT\n\t • 不需要域名\n\t • 智能判断操作系统: Ubuntu 、Debian 、CentOS 、Alpine 和 Arch Linux,请务必选择 LTS 系统\n\t • 支持硬件结构类型: AMD 和 ARM\n"
 E[3]="Input errors up to 5 times.The script is aborted."
@@ -179,6 +179,10 @@ E[77]="With sing-box installed, the script exits."
 C[77]="已安装 sing-box ，脚本退出"
 E[78]="Parameter [ $ERROR_PARAMETER ] error, script exits."
 C[78]="[ $ERROR_PARAMETER ] 参数错误，脚本退出"
+E[79]="Please enter the nginx port used to subscribe. Must be \${MIN_PORT} - \${MAX_PORT} \(Default is: \${PORT_NGINX_DEFAULT}\):"
+C[79]="请输入用于订阅服务的 nginx 端口号，必须是 \${MIN_PORT} - \${MAX_PORT} \(默认为: \${PORT_NGINX_DEFAULT}\):"
+E[80]="subscribe"
+C[80]="订阅"
 
 # 自定义字体彩色，read 函数
 warning() { echo -e "\033[31m\033[01m$*\033[0m"; }  # 红色
@@ -188,11 +192,16 @@ hint() { echo -e "\033[33m\033[01m$*\033[0m"; }   # 黄色
 reading() { read -rp "$(info "$1")" "$2"; }
 text() { grep -q '\$' <<< "${E[$*]}" && eval echo "\$(eval echo "\${${L}[$*]}")" || eval echo "\${${L}[$*]}"; }
 
-# 自定义友道或谷歌翻译函数
+# 自定义谷歌翻译函数
 translate() {
   [ -n "$@" ] && EN="$@"
   ZH=$(wget --no-check-certificate -qO- --tries=1 --timeout=2 "https://translate.google.com/translate_a/t?client=any_client_id_works&sl=en&tl=zh&q=${EN//[[:space:]]/}" 2>/dev/null)
   [[ "$ZH" =~ ^\[\".+\"\]$ ]] && cut -d \" -f2 <<< "$ZH"
+}
+
+# 检测是否需要启用 Github CDN，如能直接连通，则不使用
+check_cdn() {
+  wget --server-response --quiet --output-document=/dev/null --no-check-certificate --tries=2 --timeout=3 https://raw.githubusercontent.com/fscarmen/sing-box/main/README.md >/dev/null 2>&1 && unset GH_PROXY
 }
 
 # 脚本当天及累计运行次数统计
@@ -243,6 +252,32 @@ input_cdn() {
   fi
 }
 
+# 输入订阅 Nginx 的服务端口
+enter_nginx_port() {
+  local NUM=$1
+  local PORT_ERROR_TIME=6
+  # 生成 1000 - 65535 随机默认端口数
+  local PORT_NGINX_DEFAULT=$(shuf -i ${MIN_PORT}-${MAX_PORT} -n 1)
+  while true; do
+    [ "$PORT_ERROR_TIME" -lt 6 ] && unset IN_USED PORT_NGINX
+    (( PORT_ERROR_TIME-- )) || true
+    if [ "$PORT_ERROR_TIME" = 0 ]; then
+      error "\n $(text 3) \n"
+    else
+      [ -z "$PORT_NGINX" ] && reading "\n $(text 79) " PORT_NGINX
+    fi
+    PORT_NGINX=${PORT_NGINX:-"$PORT_NGINX_DEFAULT"}
+    if [[ "$PORT_NGINX" =~ ^[1-9][0-9]{2,4}$ && "$PORT_NGINX" -ge "$MIN_PORT" && "$PORT_NGINX" -le "$MAX_PORT" ]]; then
+      if [ "$SYSTEM" = 'Alpine' ]; then
+        netstat -an | awk '/:[0-9]+/{print $4}' | awk -F ":" '{print $NF}' | grep -q $PORT_NGINX && NGINX_PORT_IN_USED=1
+      else
+        [[ $(lsof -i udp:$PORT_NGINX) || $(lsof -i tcp:$PORT_NGINX -sTCP:LISTEN) ]] && NGINX_PORT_IN_USED=1
+      fi
+      [ -z "$NGINX_PORT_IN_USED" ] && break || warning "\n $(text 44) \n"
+    fi
+  done
+}
+
 check_root() {
   [ "$(id -u)" != 0 ] && error "\n $(text 43) \n"
 }
@@ -264,8 +299,8 @@ check_install() {
     {
     local VERSION_LATEST=$(wget --no-check-certificate -qO- "https://api.github.com/repos/SagerNet/sing-box/releases" | awk -F '["v-]' '/tag_name/{print $5}' | sort -r | sed -n '1p')
     local ONLINE=$(wget --no-check-certificate -qO- "https://api.github.com/repos/SagerNet/sing-box/releases" | awk -F '["v]' -v var="tag_name.*$VERSION_LATEST" '$0 ~ var {print $5; exit}')
-    ONLINE=${ONLINE:-'1.9.0-alpha.8'}
-    wget --no-check-certificate -c https://${GH_PROXY}github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
+    ONLINE=${ONLINE:-'1.9.0-beta.7'}
+    wget --no-check-certificate -c ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
     [ -s $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box ] && mv $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box $TEMP_DIR
     }&
   fi
@@ -302,10 +337,13 @@ EOF
     else
       systemctl enable --now $APP
     fi
-
+  elif [ "$ENABLE_DISABLE" = 'stop' ]; then
+    systemctl stop $APP
+    [ "$SYSTEM" = 'Alpine' ] && ss -nltp | grep "$(cat /var/run/nginx.pid)" | tr ',' '\n' | awk -F '=' '/pid/{print $2}' | xargs kill -9
   elif [ "$ENABLE_DISABLE" = 'disable' ]; then
     if [ "$SYSTEM" = 'Alpine' ]; then
       systemctl stop $APP
+      ss -nltp | grep "$(cat /var/run/nginx.pid)" | tr ',' '\n' | awk -F '=' '/pid/{print $2}' | xargs kill -9
       rm -f /etc/local.d/$APP.start
     else
       systemctl disable --now $APP
@@ -330,18 +368,22 @@ check_system_info() {
   [[ -z "$SYS" && -s /etc/redhat-release ]] && SYS="$(grep . /etc/redhat-release)"
   [[ -z "$SYS" && -s /etc/issue ]] && SYS="$(grep . /etc/issue | cut -d '\' -f1 | sed '/^[ ]*$/d')"
 
-  REGEX=("debian" "ubuntu" "centos|red hat|kernel|oracle linux|alma|rocky" "amazon linux" "arch linux" "alpine" "fedora")
-  RELEASE=("Debian" "Ubuntu" "CentOS" "CentOS" "Arch" "Alpine" "Fedora")
+  REGEX=("debian" "ubuntu" "centos|red hat|kernel|oracle linux|alma|rocky" "arch linux" "alpine" "fedora")
+  RELEASE=("Debian" "Ubuntu" "CentOS" "Arch" "Alpine" "Fedora")
   EXCLUDE=("")
-  MAJOR=("9" "16" "7" "7" "3" "" "37")
-  PACKAGE_UPDATE=("apt -y update" "apt -y update" "yum -y update" "yum -y update" "pacman -Sy" "apk update -f" "dnf -y update")
-  PACKAGE_INSTALL=("apt -y install" "apt -y install" "yum -y install" "yum -y install" "pacman -S --noconfirm" "apk add --no-cache" "dnf -y install")
-  PACKAGE_UNINSTALL=("apt -y autoremove" "apt -y autoremove" "yum -y autoremove" "yum -y autoremove" "pacman -Rcnsu --noconfirm" "apk del -f" "dnf -y autoremove")
+  MAJOR=("9" "16" "7" "3" "" "37")
+  PACKAGE_UPDATE=("apt -y update" "apt -y update" "yum -y update" "pacman -Sy" "apk update -f" "dnf -y update")
+  PACKAGE_INSTALL=("apt -y install" "apt -y install" "yum -y install" "pacman -S --noconfirm" "apk add --no-cache" "dnf -y install")
+  PACKAGE_UNINSTALL=("apt -y autoremove" "apt -y autoremove" "yum -y autoremove" "pacman -Rcnsu --noconfirm" "apk del -f" "dnf -y autoremove")
 
   for int in "${!REGEX[@]}"; do
     [[ "${SYS,,}" =~ ${REGEX[int]} ]] && SYSTEM="${RELEASE[int]}" && break
   done
-  [ -z "$SYSTEM" ] && error " $(text 5) "
+
+  # 针对各厂运的订制系统
+  if [ -z "$SYSTEM" ]; then
+    [ $(type -p yum) ] && int=2 && SYSTEM='CentOS' || error " $(text 5) "
+  fi
 
   # 先排除 EXCLUDE 里包括的特定系统，其他系统需要作大发行版本的比较
   for ex in "${EXCLUDE[@]}"; do [[ ! "{$SYS,,}"  =~ $ex ]]; done &&
@@ -437,6 +479,9 @@ sing-box_variable() {
     enter_start_port ${#INSTALL_PROTOCOLS[@]}
   fi
 
+  # 输入用于订阅的 Nginx 服务端口号
+  enter_nginx_port
+
   # 输入服务器 IP,默认为检测到的服务器 IP，如果全部为空，则提示并退出脚本
   [ -z "$SERVER_IP" ] && reading "\n $(text 10) " SERVER_IP
   SERVER_IP=${SERVER_IP:-"$SERVER_IP_DEFAULT"} && WS_SERVER_IP=$SERVER_IP
@@ -466,13 +511,13 @@ sing-box_variable() {
 
   # 输入 UUID ，错误超过 5 次将会退出
   UUID_DEFAULT=$($TEMP_DIR/sing-box generate uuid)
-  [ -z "$UUID" ] && reading "\n $(text 12) " UUID
+  [ -z "$UUID_CONFIRM" ] && reading "\n $(text 12) " UUID_CONFIRM
   local UUID_ERROR_TIME=5
-  until [[ -z "$UUID" || "$UUID" =~ ^[A-F0-9a-f]{8}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{12}$ ]]; do
+  until [[ -z "$UUID_CONFIRM" || "${UUID_CONFIRM,,}" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; do
     (( UUID_ERROR_TIME-- )) || true
-    [ "$UUID_ERROR_TIME" = 0 ] && error "\n $(text 3) \n" || reading "\n $(text 4) \n" UUID
+    [ "$UUID_ERROR_TIME" = 0 ] && error "\n $(text 3) \n" || reading "\n $(text 4) \n" UUID_CONFIRM
   done
-  UUID=${UUID:-"$UUID_DEFAULT"}
+  UUID_CONFIRM=${UUID_CONFIRM:-"$UUID_DEFAULT"}
 
   # 输入节点名，以系统的 hostname 作为默认
   if [ -s /etc/hostname ]; then
@@ -482,8 +527,8 @@ sing-box_variable() {
   else
     NODE_NAME_DEFAULT="Sing-Box"
   fi
-  reading "\n $(text 13) " NODE_NAME
-  NODE_NAME="${NODE_NAME:-"$NODE_NAME_DEFAULT"}"
+  reading "\n $(text 13) " NODE_NAME_CONFIRM
+  NODE_NAME_CONFIRM="${NODE_NAME_CONFIRM:-"$NODE_NAME_DEFAULT"}"
 }
 
 check_dependencies() {
@@ -492,8 +537,8 @@ check_dependencies() {
     CHECK_WGET=$(wget 2>&1 | head -n 1)
     grep -qi 'busybox' <<< "$CHECK_WGET" && ${PACKAGE_INSTALL[int]} wget >/dev/null 2>&1
 
-    DEPS_CHECK=("bash" "python3" "rc-update" "openssl" "virt-what")
-    DEPS_INSTALL=("bash" "python3" "openrc" "openssl" "virt-what")
+    DEPS_CHECK=("bash" "rc-update" "virt-what" "qrencode")
+    DEPS_INSTALL=("bash" "openrc" "virt-what" "libqrencode")
     for g in "${!DEPS_CHECK[@]}"; do [ ! $(type -p ${DEPS_CHECK[g]}) ] && [[ ! "${DEPS[@]}" =~ "${DEPS_INSTALL[g]}" ]] && DEPS+=(${DEPS_INSTALL[g]}); done
     if [ "${#DEPS[@]}" -ge 1 ]; then
       info "\n $(text 7) ${DEPS[@]} \n"
@@ -506,8 +551,8 @@ check_dependencies() {
 
   # 检测 Linux 系统的依赖，升级库并重新安装依赖
   unset DEPS_CHECK DEPS_INSTALL DEPS
-  DEPS_CHECK=("wget" "systemctl" "ip" "unzip" "lsof" "bash" "openssl")
-  DEPS_INSTALL=("wget" "systemctl" "iproute2" "unzip" "lsof" "bash" "openssl")
+  DEPS_CHECK=("wget" "systemctl" "ip" "unzip" "lsof" "bash" "openssl" "jq" "qrencode" "nginx")
+  DEPS_INSTALL=("wget" "systemctl" "iproute2" "unzip" "lsof" "bash" "openssl" "jq" "qrencode" "nginx")
   for g in "${!DEPS_CHECK[@]}"; do [ ! $(type -p ${DEPS_CHECK[g]}) ] && [[ ! "${DEPS[@]}" =~ "${DEPS_INSTALL[g]}" ]] && DEPS+=(${DEPS_INSTALL[g]}); done
   if [ "${#DEPS[@]}" -ge 1 ]; then
     info "\n $(text 7) ${DEPS[@]} \n"
@@ -524,10 +569,66 @@ ssl_certificate() {
   openssl ecparam -genkey -name prime256v1 -out $WORK_DIR/cert/private.key && openssl req -new -x509 -days 36500 -key $WORK_DIR/cert/private.key -out $WORK_DIR/cert/cert.pem -subj "/CN=$(awk -F . '{print $(NF-1)"."$NF}' <<< "$TLS_SERVER_DEFAULT")"
 }
 
+# Nginx 配置文件
+json_nginx() {
+  cat > $WORK_DIR/nginx.conf << EOF
+user  root;
+worker_processes  auto;
+
+error_log  /dev/null;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+                      '\$status \$body_bytes_sent "\$http_referer" '
+                      '"\$http_user_agent" "\$http_x_forwarded_for"';
+
+    access_log  /dev/null;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    #include /etc/nginx/conf.d/*.conf;
+
+  server {
+    listen $PORT_NGINX ;
+#    listen $PORT_NGINX ssl http2 ;  # https
+    server_name localhost;
+
+#    ssl_certificate            $WORK_DIR/cert/cert.pem;
+#    ssl_certificate_key        $WORK_DIR/cert/private.key;
+#    ssl_protocols              TLSv1.3;
+#    ssl_session_tickets        on;
+#    ssl_stapling               off;
+#    ssl_stapling_verify        off;
+
+    location ~ ^/${UUID_CONFIRM}/(.*) {
+      autoindex on;
+      proxy_set_header X-Real-IP \$proxy_protocol_addr;
+      default_type 'text/plain; charset=utf-8';
+      alias ${WORK_DIR}/subscribe/\$1;
+    }
+  }
+}
+EOF
+}
+
 # 生成 sing-box 配置文件
 sing-box_json() {
   local IS_CHANGE=$1
-  mkdir -p $WORK_DIR/conf $WORK_DIR/logs
+  mkdir -p $WORK_DIR/conf $WORK_DIR/logs $WORK_DIR/subscribe
 
   # 判断是否为新安装，不为 change 就是新安装
   if [ "$IS_CHANGE" = 'change' ]; then
@@ -661,7 +762,7 @@ EOF
   CHECK_PROTOCOLS=b
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_XTLS_REALITY" ] && PORT_XTLS_REALITY=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[11]=${NODE_NAME[11]:-"$NODE_NAME"} && UUID[11]=${UUID[11]:-"$UUID"} && TLS_SERVER[11]=${TLS_SERVER[11]:-"$TLS_SERVER"} && REALITY_PRIVATE[11]=${REALITY_PRIVATE[11]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[11]=${REALITY_PUBLIC[11]:-"$REALITY_PUBLIC"}
+    NODE_NAME[11]=${NODE_NAME[11]:-"$NODE_NAME_CONFIRM"} && UUID[11]=${UUID[11]:-"$UUID_CONFIRM"} && TLS_SERVER[11]=${TLS_SERVER[11]:-"$TLS_SERVER"} && REALITY_PRIVATE[11]=${REALITY_PRIVATE[11]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[11]=${REALITY_PUBLIC[11]:-"$REALITY_PUBLIC"}
     cat > $WORK_DIR/conf/11_${NODE_TAG[0]}_inbounds.json << EOF
 //  "public_key":"${REALITY_PUBLIC[11]}"
 {
@@ -713,7 +814,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_HYSTERIA2" ] && PORT_HYSTERIA2=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[12]=${NODE_NAME[12]:-"$NODE_NAME"} && UUID[12]=${UUID[12]:-"$UUID"}
+    NODE_NAME[12]=${NODE_NAME[12]:-"$NODE_NAME_CONFIRM"} && UUID[12]=${UUID[12]:-"$UUID_CONFIRM"}
     cat > $WORK_DIR/conf/12_${NODE_TAG[1]}_inbounds.json << EOF
 {
     "inbounds":[
@@ -751,7 +852,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_TUIC" ] && PORT_TUIC=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[13]=${NODE_NAME[13]:-"$NODE_NAME"} && UUID[13]=${UUID[13]:-"$UUID"} && TUIC_PASSWORD=${TUIC_PASSWORD:-"$UUID"} && TUIC_CONGESTION_CONTROL=${TUIC_CONGESTION_CONTROL:-"bbr"}
+    NODE_NAME[13]=${NODE_NAME[13]:-"$NODE_NAME_CONFIRM"} && UUID[13]=${UUID[13]:-"$UUID_CONFIRM"} && TUIC_PASSWORD=${TUIC_PASSWORD:-"$UUID_CONFIRM"} && TUIC_CONGESTION_CONTROL=${TUIC_CONGESTION_CONTROL:-"bbr"}
     cat > $WORK_DIR/conf/13_${NODE_TAG[2]}_inbounds.json << EOF
 {
     "inbounds":[
@@ -788,7 +889,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_SHADOWTLS" ] && PORT_SHADOWTLS=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[14]=${NODE_NAME[14]:-"$NODE_NAME"} && UUID[14]=${UUID[14]:-"$UUID"} && TLS_SERVER[14]=${TLS_SERVER[14]:-"$TLS_SERVER"} && SHADOWTLS_PASSWORD=${SHADOWTLS_PASSWORD:-"$($DIR/sing-box generate rand --base64 16)"} && SHADOWTLS_METHOD=${SHADOWTLS_METHOD:-"2022-blake3-aes-128-gcm"}
+    NODE_NAME[14]=${NODE_NAME[14]:-"$NODE_NAME_CONFIRM"} && UUID[14]=${UUID[14]:-"$UUID_CONFIRM"} && TLS_SERVER[14]=${TLS_SERVER[14]:-"$TLS_SERVER"} && SHADOWTLS_PASSWORD=${SHADOWTLS_PASSWORD:-"$($DIR/sing-box generate rand --base64 16)"} && SHADOWTLS_METHOD=${SHADOWTLS_METHOD:-"2022-blake3-aes-128-gcm"}
 
     cat > $WORK_DIR/conf/14_${NODE_TAG[3]}_inbounds.json << EOF
 {
@@ -839,7 +940,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_SHADOWSOCKS" ] && PORT_SHADOWSOCKS=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[15]=${NODE_NAME[15]:-"$NODE_NAME"} && UUID[15]=${UUID[15]:-"$UUID"} && SHADOWSOCKS_METHOD=${SHADOWSOCKS_METHOD:-"aes-128-gcm"}
+    NODE_NAME[15]=${NODE_NAME[15]:-"$NODE_NAME_CONFIRM"} && UUID[15]=${UUID[15]:-"$UUID_CONFIRM"} && SHADOWSOCKS_METHOD=${SHADOWSOCKS_METHOD:-"aes-128-gcm"}
     cat > $WORK_DIR/conf/15_${NODE_TAG[4]}_inbounds.json << EOF
 {
     "inbounds":[
@@ -850,7 +951,7 @@ EOF
             "tag":"${NODE_NAME[15]} ${NODE_TAG[4]}",
             "listen":"::",
             "listen_port":$PORT_SHADOWSOCKS,
-            "method":"$SHADOWSOCKS_METHOD",
+            "method":"${SHADOWSOCKS_METHOD}",
             "password":"${UUID[15]}",
             "multiplex":{
                 "enabled":true,
@@ -871,7 +972,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_TROJAN" ] && PORT_TROJAN=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[16]=${NODE_NAME[16]:-"$NODE_NAME"} && TROJAN_PASSWORD=${TROJAN_PASSWORD:-"$UUID"}
+    NODE_NAME[16]=${NODE_NAME[16]:-"$NODE_NAME_CONFIRM"} && TROJAN_PASSWORD=${TROJAN_PASSWORD:-"$UUID_CONFIRM"}
     cat > $WORK_DIR/conf/16_${NODE_TAG[5]}_inbounds.json << EOF
 {
     "inbounds":[
@@ -911,7 +1012,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_VMESS_WS" ] && PORT_VMESS_WS=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[17]=${NODE_NAME[17]:-"$NODE_NAME"} && UUID[17]=${UUID[17]:-"$UUID"} && WS_SERVER_IP[17]=${WS_SERVER_IP[17]:-"$SERVER_IP"} && CDN[17]=${CDN[17]:-"$CDN"} && VMESS_WS_PATH=${VMESS_WS_PATH:-"${UUID[17]}-vmess"}
+    NODE_NAME[17]=${NODE_NAME[17]:-"$NODE_NAME_CONFIRM"} && UUID[17]=${UUID[17]:-"$UUID_CONFIRM"} && WS_SERVER_IP[17]=${WS_SERVER_IP[17]:-"$SERVER_IP"} && CDN[17]=${CDN[17]:-"$CDN"} && VMESS_WS_PATH=${VMESS_WS_PATH:-"${UUID[17]}-vmess"}
     cat > $WORK_DIR/conf/17_${NODE_TAG[6]}_inbounds.json << EOF
 //  "WS_SERVER_IP": "${WS_SERVER_IP[17]}"
 //  "VMESS_HOST_DOMAIN": "$VMESS_HOST_DOMAIN"
@@ -958,7 +1059,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_VLESS_WS" ] && PORT_VLESS_WS=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[18]=${NODE_NAME[18]:-"$NODE_NAME"} && UUID[18]=${UUID[18]:-"$UUID"} && WS_SERVER_IP[18]=${WS_SERVER_IP[18]:-"$SERVER_IP"} && CDN[18]=${CDN[18]:-"$CDN"} && VLESS_WS_PATH=${VLESS_WS_PATH:-"${UUID[18]}-vless"}
+    NODE_NAME[18]=${NODE_NAME[18]:-"$NODE_NAME_CONFIRM"} && UUID[18]=${UUID[18]:-"$UUID_CONFIRM"} && WS_SERVER_IP[18]=${WS_SERVER_IP[18]:-"$SERVER_IP"} && CDN[18]=${CDN[18]:-"$CDN"} && VLESS_WS_PATH=${VLESS_WS_PATH:-"${UUID[18]}-vless"}
     cat > $WORK_DIR/conf/18_${NODE_TAG[7]}_inbounds.json << EOF
 //  "WS_SERVER_IP": "${WS_SERVER_IP[18]}"
 //  "CDN": "${CDN[18]}"
@@ -1012,7 +1113,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_H2_REALITY" ] && PORT_H2_REALITY=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[19]=${NODE_NAME[19]:-"$NODE_NAME"} && UUID[19]=${UUID[19]:-"$UUID"} && TLS_SERVER[19]=${TLS_SERVER[19]:-"$TLS_SERVER"} && REALITY_PRIVATE[19]=${REALITY_PRIVATE[19]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[19]=${REALITY_PUBLIC[19]:-"$REALITY_PUBLIC"}
+    NODE_NAME[19]=${NODE_NAME[19]:-"$NODE_NAME_CONFIRM"} && UUID[19]=${UUID[19]:-"$UUID_CONFIRM"} && TLS_SERVER[19]=${TLS_SERVER[19]:-"$TLS_SERVER"} && REALITY_PRIVATE[19]=${REALITY_PRIVATE[19]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[19]=${REALITY_PUBLIC[19]:-"$REALITY_PUBLIC"}
     cat > $WORK_DIR/conf/19_${NODE_TAG[8]}_inbounds.json << EOF
 //  "public_key":"${REALITY_PUBLIC[19]}"
 {
@@ -1066,7 +1167,7 @@ EOF
   CHECK_PROTOCOLS=$(asc "$CHECK_PROTOCOLS" ++)
   if [[ "${INSTALL_PROTOCOLS[@]}" =~ "$CHECK_PROTOCOLS" ]]; then
     [ -z "$PORT_GRPC_REALITY" ] && PORT_GRPC_REALITY=$[START_PORT+$(awk -v target=$CHECK_PROTOCOLS '{ for(i=1; i<=NF; i++) if($i == target) { print i-1; break } }' <<< "${INSTALL_PROTOCOLS[*]}")]
-    NODE_NAME[20]=${NODE_NAME[20]:-"$NODE_NAME"} && UUID[20]=${UUID[20]:-"$UUID"} && TLS_SERVER[20]=${TLS_SERVER[20]:-"$TLS_SERVER"} && REALITY_PRIVATE[20]=${REALITY_PRIVATE[20]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[20]=${REALITY_PUBLIC[20]:-"$REALITY_PUBLIC"}
+    NODE_NAME[20]=${NODE_NAME[20]:-"$NODE_NAME_CONFIRM"} && UUID[20]=${UUID[20]:-"$UUID_CONFIRM"} && TLS_SERVER[20]=${TLS_SERVER[20]:-"$TLS_SERVER"} && REALITY_PRIVATE[20]=${REALITY_PRIVATE[20]:-"$REALITY_PRIVATE"} && REALITY_PUBLIC[20]=${REALITY_PUBLIC[20]:-"$REALITY_PUBLIC"}
     cat > $WORK_DIR/conf/20_${NODE_TAG[9]}_inbounds.json << EOF
 //  "public_key":"${REALITY_PUBLIC[20]}"
 {
@@ -1131,6 +1232,7 @@ User=root
 WorkingDirectory=$WORK_DIR
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStartPre=$(type -p nginx) -c $WORK_DIR/nginx.conf
 ExecStart=$WORK_DIR/sing-box run -C $WORK_DIR/conf/
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
@@ -1150,6 +1252,11 @@ fetch_nodes_value() {
   SERVER_IP=$(grep -A1 '"tag"' $WORK_DIR/list | sed -E '/-ws(-tls)*",$/{N;d}' | awk -F '"' '/"server"/{count++; if (count == 1) {print $4; exit}}')
   EXISTED_PORTS=$(awk -F ':|,' '/listen_port/{print $2}' $WORK_DIR/conf/*_inbounds.json)
   START_PORT=$(awk 'NR == 1 { min = $0 } { if ($0 < min) min = $0; count++ } END {print min}' <<< "$EXISTED_PORTS")
+
+  # 获取 Nginx 端口和路径
+  local NGINX_JSON=$(cat $WORK_DIR/nginx.conf)
+  PORT_NGINX=$(awk '/listen/{print $2; exit}' <<< "$NGINX_JSON")
+  UUID_CONFIRM=$(awk -F '/' '/location ~ \^/{print $2; exit}' <<< "$NGINX_JSON")
 
   # 获取 XTLS + Reality key-value
   [ -s $WORK_DIR/conf/*_${NODE_TAG[0]}_inbounds.json ] && local JSON=$(cat $WORK_DIR/conf/*_${NODE_TAG[0]}_inbounds.json) && NODE_NAME[11]=$(sed -n "s/.*\"tag\":\"\(.*\) ${NODE_TAG[0]}.*/\1/p" <<< "$JSON") && PORT_XTLS_REALITY=$(sed -n 's/.*"listen_port":\([0-9]\+\),/\1/gp' <<< "$JSON") && UUID[11]=$(awk -F '"' '/"uuid"/{print $4}' <<< "$JSON") && TLS_SERVER[11]=$(awk -F '"' '/"server_name"/{print $4}' <<< "$JSON") && REALITY_PRIVATE[11]=$(awk -F '"' '/"private_key"/{print $4}' <<< "$JSON") && REALITY_PUBLIC[11]=$(awk -F '"' '/"public_key"/{print $4}' <<< "$JSON")
@@ -1190,7 +1297,12 @@ install_sing-box() {
   sing-box_json
   echo "$L" > $WORK_DIR/language
   cp $TEMP_DIR/sing-box $WORK_DIR
+
+  # 生成 sing-box systemd 配置文件
   sing-box_systemd
+
+  # 生成 Nginx 配置文件
+  json_nginx
 
   # 如果 Alpine 系统，放到开机自启动
   if [ "$SYSTEM" = 'Alpine' ]; then
@@ -1225,6 +1337,132 @@ export_list() {
     SERVER_IP_2="$SERVER_IP"
   fi
 
+  # 生成各订阅文件
+  # 生成 Clash proxy providers 订阅文件
+  echo 'proxies:' > $WORK_DIR/subscribe/proxies
+
+  [ -n "$PORT_XTLS_REALITY" ] && echo "  - {name: \"${NODE_NAME[11]} ${NODE_TAG[0]}\", type: vless, server: ${SERVER_IP}, port: ${PORT_XTLS_REALITY}, uuid: ${UUID[11]}, network: tcp, udp: true, tls: true, servername: ${TLS_SERVER[11]}, client-fingerprint: chrome, reality-opts: {public-key: ${REALITY_PUBLIC[11]}, short-id: \"\"}, smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_HYSTERIA2" ] && echo "  - {name: \"${NODE_NAME[12]} ${NODE_TAG[1]}\", type: hysteria2, server: ${SERVER_IP}, port: ${PORT_HYSTERIA2}, up: \"200 Mbps\", down: \"1000 Mbps\", password: ${UUID[12]}, skip-cert-verify: true}" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_TUIC" ] && echo "  - {name: \"${NODE_NAME[13]} ${NODE_TAG[2]}\", type: tuic, server: ${SERVER_IP}, port: ${PORT_TUIC}, uuid: ${UUID[13]}, password: ${TUIC_PASSWORD}, alpn: [h3], disable-sni: true, reduce-rtt: true, request-timeout: 8000, udp-relay-mode: native, congestion-controller: $TUIC_CONGESTION_CONTROL, skip-cert-verify: true}" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_SHADOWTLS" ] && echo "  - {name: \"${NODE_NAME[14]} ${NODE_TAG[3]}\", type: ss, server: ${SERVER_IP}, port: ${PORT_SHADOWTLS}, cipher: $SHADOWTLS_METHOD, password: \"$SHADOWTLS_PASSWORD\", plugin: shadow-tls, client-fingerprint: chrome, plugin-opts: {host: \"${TLS_SERVER[14]}\", password: \"${UUID[14]}\", version: 3}, smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_SHADOWSOCKS" ] && echo "  - {name: \"${NODE_NAME[15]} ${NODE_TAG[4]}\", type: ss, server: ${SERVER_IP}, port: $PORT_SHADOWSOCKS, cipher: ${SHADOWSOCKS_METHOD}, password: \"${UUID[15]}\", smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_TROJAN" ] && echo "  - {name: \"${NODE_NAME[16]} ${NODE_TAG[5]}\", type: trojan, server: ${SERVER_IP}, port: $PORT_TROJAN, password: $TROJAN_PASSWORD, client-fingerprint: random, skip-cert-verify: true, smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_VMESS_WS" ] && echo "  - {name: \"${NODE_NAME[17]} ${NODE_TAG[6]}\", type: vmess, server: ${CDN[17]}, port: 80, uuid: ${UUID[17]}, udp: true, tls: false, alterId: 0, cipher: none, skip-cert-verify: true, network: ws, ws-opts: { path: \"/$VMESS_WS_PATH\", headers: { Host: $VMESS_HOST_DOMAIN, max-early-data: 2048, early-data-header-name: Sec-WebSocket-Protocol} }, smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+  [ -n "$PORT_VLESS_WS" ] && echo "  - {name: \"${NODE_NAME[18]} ${NODE_TAG[7]}\", type: vless, server: ${CDN[18]}, port: 443, uuid: ${UUID[18]}, udp: true, tls: true, servername: $VLESS_HOST_DOMAIN, network: ws, skip-cert-verify: true, ws-opts: { path: \"/$VLESS_WS_PATH?ed=2048\", headers: { Host: $VLESS_HOST_DOMAIN } }, smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }" >> $WORK_DIR/subscribe/proxies
+
+  # 生成 clash 订阅配置文件
+  wget --no-check-certificate -qO- --tries=3 --timeout=2 ${GH_PROXY}${SUBSCRIBE_TEMPLATE}/clash | sed "s#NODE_NAME#${NODE_NAME_CONFIRM}#g; s#PROXY_PROVIDERS_URL#http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/proxies#" > $WORK_DIR/subscribe/clash
+
+  # 生成 Shadowrocket 订阅配置文件
+  [ -n "$PORT_XTLS_REALITY" ] && local SHADOWROCKET_JSON+="
+vless://$(echo -n "auto:${UUID[11]}@${SERVER_IP_2}:${PORT_XTLS_REALITY}" | base64 -w0)?remarks=${NODE_NAME[11]} ${NODE_TAG[0]}&obfs=none&tls=1&peer=${TLS_SERVER[11]}&mux=1&pbk=${REALITY_PUBLIC[11]}"
+  [ -n "$PORT_HYSTERIA2" ] && local SHADOWROCKET_JSON+="
+hysteria2://${UUID[12]}@${SERVER_IP_2}:${PORT_HYSTERIA2}?insecure=1&obfs=none#${NODE_NAME[12]}%20${NODE_TAG[1]}"
+  [ -n "$PORT_TUIC" ] && local SHADOWROCKET_JSON+="
+tuic://${TUIC_PASSWORD}:${UUID[13]}@${SERVER_IP_2}:${PORT_TUIC}?congestion_control=$TUIC_CONGESTION_CONTROL&udp_relay_mode=native&alpn=h3&allow_insecure=1#${NODE_NAME[13]}%20${NODE_TAG[2]}"
+  [ -n "$PORT_SHADOWTLS" ] && local SHADOWROCKET_JSON+="
+ss://$(echo -n "$SHADOWTLS_METHOD:$SHADOWTLS_PASSWORD@${SERVER_IP_2}:${PORT_SHADOWTLS}" | base64 -w0)?shadow-tls=$(echo -n "{\"version\":\"3\",\"host\":\"${TLS_SERVER[14]}\",\"password\":\"${UUID[14]}\"}" | base64 -w0)#${NODE_NAME[14]}%20${NODE_TAG[3]}"
+  [ -n "$PORT_SHADOWSOCKS" ] && local SHADOWROCKET_JSON+="
+ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}@${SERVER_IP_2}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]}%20${NODE_TAG[4]}"
+  [ -n "$PORT_TROJAN" ] && local SHADOWROCKET_JSON+="
+trojan://$TROJAN_PASSWORD@${SERVER_IP_1}:$PORT_TROJAN?allowInsecure=1#${NODE_NAME[16]}%20${NODE_TAG[5]}"
+  [ -n "$PORT_VMESS_WS" ] && local SHADOWROCKET_JSON+="
+vmess://$(echo -n "none:${UUID[17]}@${CDN[17]}:80" | base64 -w0)?remarks=${NODE_NAME[17]}%20${NODE_TAG[6]}&obfsParam=$VMESS_HOST_DOMAIN&path=/$VMESS_WS_PATH&obfs=websocket&alterId=0"
+  [ -n "$PORT_VLESS_WS" ] && local SHADOWROCKET_JSON+="
+vless://$(echo -n "auto:${UUID[18]}@${CDN[18]}:443" | base64 -w0)?remarks=${NODE_NAME[18]}%20${NODE_TAG[7]}&obfsParam=$VLESS_HOST_DOMAIN&path=/$VLESS_WS_PATH?ed=2048&obfs=websocket&tls=1&peer=$VLESS_HOST_DOMAIN&allowInsecure=1"
+  [ -n "$PORT_H2_REALITY" ] && local SHADOWROCKET_JSON+="
+vless://$(echo -n auto:${UUID[19]}@${SERVER_IP_2}:${PORT_H2_REALITY} | base64 -w0)?remarks=${NODE_NAME[19]}%20${NODE_TAG[8]}&path=/&obfs=h2&tls=1&peer=${TLS_SERVER[19]}&alpn=h2&mux=1&pbk=${REALITY_PUBLIC[19]}"
+  [ -n "$PORT_GRPC_REALITY" ] && local SHADOWROCKET_JSON+="
+vless://$(echo -n "auto:${UUID[20]}@${SERVER_IP_2}:${PORT_GRPC_REALITY}" | base64 -w0)?remarks=${NODE_NAME[20]}%20${NODE_TAG[9]}&path=grpc&obfs=grpc&tls=1&peer=${TLS_SERVER[20]}&pbk=${REALITY_PUBLIC[20]}"
+
+  echo -n "$SHADOWROCKET_JSON" | sed "/^$/d" | base64 -w0 > $WORK_DIR/subscribe/shadowrocket
+
+  # 生成 V2rayN 订阅文件
+  [ -n "$PORT_XTLS_REALITY" ] && local V2RAYN_JSON+="
+vless://${UUID[11]}@${SERVER_IP_1}:${PORT_XTLS_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[11]}&fp=chrome&pbk=${REALITY_PUBLIC[11]}&type=tcp&headerType=none#${NODE_NAME[11]// /%20}%20${NODE_TAG[0]}"
+  [ -n "$PORT_HYSTERIA2" ] && local V2RAYN_JSON+="
+hysteria2://${UUID[12]}@${SERVER_IP_1}:${PORT_HYSTERIA2}?insecure=1#${NODE_NAME[12]// /%20}%20${NODE_TAG[1]}"
+  [ -n "$PORT_TUIC" ] && local V2RAYN_JSON+="
+tuic://${UUID[13]}:${TUIC_PASSWORD}@${SERVER_IP_1}:${PORT_TUIC}?alpn=h3&congestion_control=$TUIC_CONGESTION_CONTROL#${NODE_NAME[13]// /%20}%20${NODE_TAG[2]}"
+  [ -n "$PORT_SHADOWSOCKS" ] && local V2RAYN_JSON+="
+ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}@${SERVER_IP_1}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]// /%20}%20${NODE_TAG[4]}"
+  [ -n "$PORT_TROJAN" ] && local V2RAYN_JSON+="
+trojan://$TROJAN_PASSWORD@${SERVER_IP_1}:$PORT_TROJAN?security=tls&type=tcp&headerType=none#${NODE_NAME[16]// /%20}%20${NODE_TAG[5]}"
+  [ -n "$PORT_VMESS_WS" ] && local V2RAYN_JSON+="
+vmess://$(echo -n "{ \"v\": \"2\", \"ps\": \"${NODE_NAME[17]} ${NODE_TAG[6]}\", \"add\": \"${CDN[18]}\", \"port\": \"80\", \"id\": \"${UUID[18]}\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$VMESS_HOST_DOMAIN\", \"path\": \"/$VMESS_WS_PATH\", \"tls\": \"\", \"sni\": \"\", \"alpn\": \"\" }" | base64 -w0)"
+  [ -n "$PORT_VLESS_WS" ] && local V2RAYN_JSON+="
+vless://${UUID[18]}@${CDN[18]}:443?encryption=none&security=tls&sni=$VLESS_HOST_DOMAIN&type=ws&host=$VLESS_HOST_DOMAIN&path=%2F$VLESS_WS_PATH%3Fed%3D2048#${NODE_NAME[18]// /%20}%20${NODE_TAG[7]}"
+  [ -n "$PORT_H2_REALITY" ] && local V2RAYN_JSON+="
+vless://${UUID[19]}@${SERVER_IP_1}:${PORT_H2_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[19]}&fp=chrome&pbk=${REALITY_PUBLIC[19]}&type=http#${NODE_NAME[19]// /%20}%20${NODE_TAG[8]}"
+  [ -n "$PORT_GRPC_REALITY" ] && local V2RAYN_JSON+="
+vless://${UUID[20]}@${SERVER_IP_1}:${PORT_GRPC_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[20]}&fp=chrome&pbk=${REALITY_PUBLIC[20]}&type=grpc&serviceName=grpc&mode=gun#${NODE_NAME[20]// /%20}%20${NODE_TAG[9]}"
+
+  echo -n "$V2RAYN_JSON" | sed "/^$/d; s/ /%20/g" | base64 -w0 > $WORK_DIR/subscribe/v2rayn
+
+  # 生成 Nekobox 订阅文件
+  [ -n "$PORT_XTLS_REALITY" ] && local NEKOBOX_JSON+="
+vless://${UUID[11]}@${SERVER_IP_1}:${PORT_XTLS_REALITY}?security=reality&sni=${TLS_SERVER[11]}&fp=chrome&pbk=${REALITY_PUBLIC[11]}&type=tcp&encryption=none#${NODE_NAME[11]}%20${NODE_TAG[0]}"
+  [ -n "$PORT_HYSTERIA2" ] && local NEKOBOX_JSON+="
+hy2://${UUID[12]}@${SERVER_IP_1}:${PORT_HYSTERIA2}?insecure=1#${NODE_NAME[12]} ${NODE_TAG[1]}"
+  [ -n "$PORT_TUIC" ] && local NEKOBOX_JSON+="
+tuic://${TUIC_PASSWORD}:${UUID[13]}@${SERVER_IP_1}:${PORT_TUIC}?congestion_control=$TUIC_CONGESTION_CONTROL&alpn=h3&udp_relay_mode=native&allow_insecure=1&disable_sni=1#${NODE_NAME[13]} ${NODE_TAG[2]}"
+  [ -n "$PORT_SHADOWTLS" ] && local NEKOBOX_JSON+="
+nekoray://custom#$(echo -n "{\"_v\":0,\"addr\":\"127.0.0.1\",\"cmd\":[\"\"],\"core\":\"internal\",\"cs\":\"{\n    \\\"password\\\": \\\"${UUID[14]}\\\",\n    \\\"server\\\": \\\"${SERVER_IP_1}\\\",\n    \\\"server_port\\\": ${PORT_SHADOWTLS},\n    \\\"tag\\\": \\\"shadowtls-out\\\",\n    \\\"tls\\\": {\n        \\\"enabled\\\": true,\n        \\\"server_name\\\": \\\"${TLS_SERVER[14]}\\\"\n    },\n    \\\"type\\\": \\\"shadowtls\\\",\n    \\\"version\\\": 3\n}\n\",\"mapping_port\":0,\"name\":\"1-tls-not-use\",\"port\":1080,\"socks_port\":0}" | base64 -w0)
+nekoray://shadowsocks#$(echo -n "{\"_v\":0,\"method\":\"$SHADOWTLS_METHOD\",\"name\":\"2-ss-not-use\",\"pass\":\"$SHADOWTLS_PASSWORD\",\"port\":0,\"stream\":{\"ed_len\":0,\"insecure\":false,\"mux_s\":0,\"net\":\"tcp\"},\"uot\":0}" | base64 -w0)"
+  [ -n "$PORT_SHADOWSOCKS" ] && local NEKOBOX_JSON+="
+ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}" | base64 -w0)@${SERVER_IP_1}:$PORT_SHADOWSOCKS#${NODE_NAME[15]} ${NODE_TAG[4]}"
+  [ -n "$PORT_TROJAN" ] && local NEKOBOX_JSON+="
+trojan://$TROJAN_PASSWORD@${SERVER_IP_1}:$PORT_TROJAN?security=tls&allowInsecure=1&fp=random&type=tcp#${NODE_NAME[16]} ${NODE_TAG[5]}"
+  [ -n "$PORT_VMESS_WS" ] && local NEKOBOX_JSON+="
+vmess://$(echo -n "{\"add\":\"${CDN[17]}\",\"aid\":\"0\",\"host\":\"$VMESS_HOST_DOMAIN\",\"id\":\"${UUID[17]}\",\"net\":\"ws\",\"path\":\"/$VMESS_WS_PATH\",\"port\":\"80\",\"ps\":\"${NODE_NAME[17]} ${NODE_TAG[6]}\",\"scy\":\"none\",\"sni\":\"\",\"tls\":\"\",\"type\":\"\",\"v\":\"2\"}" | base64 -w0)"
+  [ -n "$PORT_VLESS_WS" ] && local NEKOBOX_JSON+="
+vless://${UUID[18]}@${CDN[18]}:443?security=tls&sni=$VLESS_HOST_DOMAIN&type=ws&path=/$VLESS_WS_PATH?ed%3D2048&host=$VLESS_HOST_DOMAIN&encryption=none#${NODE_NAME[18]}%20${NODE_TAG[7]}"
+  [ -n "$PORT_H2_REALITY" ] && local NEKOBOX_JSON+="
+vless://${UUID[19]}@${SERVER_IP_1}:${PORT_H2_REALITY}?security=reality&sni=${TLS_SERVER[19]}&alpn=h2&fp=chrome&pbk=${REALITY_PUBLIC[19]}&type=http&encryption=none#${NODE_NAME[19]}%20${NODE_TAG[8]}"
+  [ -n "$PORT_GRPC_REALITY" ] && local NEKOBOX_JSON+="
+vless://${UUID[20]}@${SERVER_IP_1}:${PORT_GRPC_REALITY}?security=reality&sni=${TLS_SERVER[20]}&fp=chrome&pbk=${REALITY_PUBLIC[20]}&type=grpc&serviceName=grpc&encryption=none#${NODE_NAME[20]}%20${NODE_TAG[9]}"
+
+  echo -n "$NEKOBOX_JSON" | sed "/^$/d" | base64 -w0 > $WORK_DIR/subscribe/neko
+
+  # 生成 Sing-box 订阅文件
+  [ -n "$PORT_XTLS_REALITY" ] && local INBOUND_REPLACE+=" { \"type\": \"vless\", \"tag\": \"${NODE_NAME[11]} ${NODE_TAG[0]}\", \"server\":\"${SERVER_IP}\", \"server_port\":${PORT_XTLS_REALITY}, \"uuid\":\"${UUID[11]}\", \"flow\":\"\", \"packet_encoding\":\"xudp\", \"tls\":{ \"enabled\":true, \"server_name\":\"${TLS_SERVER[11]}\", \"utls\":{ \"enabled\":true, \"fingerprint\":\"chrome\" }, \"reality\":{ \"enabled\":true, \"public_key\":\"${REALITY_PUBLIC[11]}\", \"short_id\":\"\" } }, \"multiplex\": { \"enabled\": true, \"protocol\": \"h2mux\", \"max_connections\": 8, \"min_streams\": 16, \"padding\": true } }," && local NODE_REPLACE+="\" ${NODE_NAME[11]} ${NODE_TAG[0]}\","
+  [ -n "$PORT_HYSTERIA2" ] && local INBOUND_REPLACE+=" { \"type\": \"hysteria2\", \"tag\": \"${NODE_NAME[12]} ${NODE_TAG[1]}\", \"server\": \"${SERVER_IP}\", \"server_port\": ${PORT_HYSTERIA2}, \"up_mbps\": 200, \"down_mbps\": 1000, \"password\": \"${UUID[12]}\", \"tls\": { \"enabled\": true, \"insecure\": true, \"server_name\": \"\", \"alpn\": [ \"h3\" ] } }," && local NODE_REPLACE+="\" ${NODE_NAME[12]} ${NODE_TAG[1]}\","
+  [ -n "$PORT_TUIC" ] && local INBOUND_REPLACE+=" { \"type\": \"tuic\", \"tag\": \"${NODE_NAME[13]} ${NODE_TAG[2]}\", \"server\": \"${SERVER_IP}\", \"server_port\": ${PORT_TUIC}, \"uuid\": \"${UUID[13]}\", \"password\": \"${TUIC_PASSWORD}\", \"congestion_control\": \"$TUIC_CONGESTION_CONTROL\", \"udp_relay_mode\": \"native\", \"zero_rtt_handshake\": false, \"heartbeat\": \"10s\", \"tls\": { \"enabled\": true, \"insecure\": true, \"server_name\": \"\", \"alpn\": [ \"h3\" ] } }," && local NODE_REPLACE+="\" ${NODE_NAME[13]} ${NODE_TAG[2]}\","
+  [ -n "$PORT_SHADOWTLS" ] && local INBOUND_REPLACE+=" { \"type\": \"shadowsocks\", \"tag\": \"${NODE_NAME[14]} ${NODE_TAG[3]}\", \"method\": \"$SHADOWTLS_METHOD\", \"password\": \"$SHADOWTLS_PASSWORD\", \"detour\": \"shadowtls-out\", \"udp_over_tcp\": false, \"multiplex\": { \"enabled\": true, \"protocol\": \"h2mux\", \"max_connections\": 8, \"min_streams\": 16, \"padding\": true } }, { \"type\": \"shadowtls\", \"tag\": \"shadowtls-out\", \"server\": \"${SERVER_IP}\", \"server_port\": ${PORT_SHADOWTLS}, \"version\": 3, \"password\": \"${UUID[14]}\", \"tls\": { \"enabled\": true, \"server_name\": \"${TLS_SERVER[14]}\", \"utls\": { \"enabled\": true, \"fingerprint\": \"chrome\" } } }," && local NODE_REPLACE+="\" ${NODE_NAME[14]} ${NODE_TAG[3]}\","
+  [ -n "$PORT_SHADOWSOCKS" ] && local INBOUND_REPLACE+=" { \"type\": \"shadowsocks\", \"tag\": \"${NODE_NAME[15]} ${NODE_TAG[4]}\", \"server\": \"${SERVER_IP}\", \"server_port\": $PORT_SHADOWSOCKS, \"method\": \"${SHADOWSOCKS_METHOD}\", \"password\": \"${UUID[14]}\", \"multiplex\": { \"enabled\": true, \"protocol\": \"h2mux\", \"max_connections\": 8, \"min_streams\": 16, \"padding\": true } }," && local NODE_REPLACE+="\" ${NODE_NAME[15]} ${NODE_TAG[4]}\","
+  [ -n "$PORT_TROJAN" ] && local INBOUND_REPLACE+=" { \"type\": \"trojan\", \"tag\": \"${NODE_NAME[16]} ${NODE_TAG[5]}\", \"server\": \"${SERVER_IP}\", \"server_port\": $PORT_TROJAN, \"password\": \"$TROJAN_PASSWORD\", \"tls\": { \"enabled\":true, \"insecure\": true, \"server_name\":\"\", \"utls\": { \"enabled\":true, \"fingerprint\":\"chrome\" } }, \"multiplex\": { \"enabled\":true, \"protocol\":\"h2mux\", \"max_connections\": 8, \"min_streams\": 16, \"padding\": true } }," && local NODE_REPLACE+="\" ${NODE_NAME[16]} ${NODE_TAG[5]}\","
+  [ -n "$PORT_VMESS_WS" ] && local INBOUND_REPLACE+=" { \"type\": \"vmess\", \"tag\": \"${NODE_NAME[17]} ${NODE_TAG[6]}\", \"server\":\"${CDN[17]}\", \"server_port\":80, \"uuid\":\"${UUID[17]}\", \"transport\": { \"type\":\"ws\", \"path\":\"/$VMESS_WS_PATH\", \"headers\": { \"Host\": \"$VMESS_HOST_DOMAIN\" }, \"max_early_data\":2048, \"early_data_header_name\":\"Sec-WebSocket-Protocol\" }, \"multiplex\": { \"enabled\":true, \"protocol\":\"h2mux\", \"max_streams\":16, \"padding\": true } }," && local NODE_REPLACE+="\" ${NODE_NAME[17]} ${NODE_TAG[6]}\","
+  [ -n "$PORT_VLESS_WS" ] && local INBOUND_REPLACE+=" { \"type\": \"vless\", \"tag\": \"${NODE_NAME[18]} ${NODE_TAG[7]}\", \"server\":\"${CDN[18]}\", \"server_port\":443, \"uuid\":\"${UUID[18]}\", \"tls\": { \"enabled\":true, \"server_name\":\"$VLESS_HOST_DOMAIN\", \"utls\": { \"enabled\":true, \"fingerprint\":\"chrome\" } }, \"transport\": { \"type\":\"ws\", \"path\":\"/$VLESS_WS_PATH\", \"headers\": { \"Host\": \"$VLESS_HOST_DOMAIN\" }, \"max_early_data\":2048, \"early_data_header_name\":\"Sec-WebSocket-Protocol\" }, \"multiplex\": { \"enabled\":true, \"protocol\":\"h2mux\", \"max_streams\":16, \"padding\": true } }," && local NODE_REPLACE+="\" ${NODE_NAME[18]} ${NODE_TAG[7]}\","
+  [ -n "$PORT_H2_REALITY" ] && local INBOUND_REPLACE+=" { \"type\": \"vless\", \"tag\": \"${NODE_NAME[19]} ${NODE_TAG[8]}\", \"server\": \"${SERVER_IP}\", \"server_port\": ${PORT_H2_REALITY}, \"uuid\":\"${UUID[19]}\", \"tls\": { \"enabled\":true, \"server_name\":\"${TLS_SERVER[19]}\", \"utls\": { \"enabled\":true, \"fingerprint\":\"chrome\" }, \"reality\":{ \"enabled\":true, \"public_key\":\"${REALITY_PUBLIC[19]}\", \"short_id\":\"\" } }, \"packet_encoding\": \"xudp\", \"transport\": { \"type\": \"http\" } }," && local NODE_REPLACE+="\" ${NODE_NAME[19]} ${NODE_TAG[8]}\","
+  [ -n "$PORT_GRPC_REALITY" ] && local INBOUND_REPLACE+=" { \"type\": \"vless\", \"tag\": \"${NODE_NAME[20]} ${NODE_TAG[9]}\", \"server\": \"${SERVER_IP}\", \"server_port\": ${PORT_GRPC_REALITY}, \"uuid\":\"${UUID[20]}\", \"tls\": { \"enabled\":true, \"server_name\":\"${TLS_SERVER[20]}\", \"utls\": { \"enabled\":true, \"fingerprint\":\"chrome\" }, \"reality\":{ \"enabled\":true, \"public_key\":\"${REALITY_PUBLIC[20]}\", \"short_id\":\"\" } }, \"packet_encoding\": \"xudp\", \"transport\": { \"type\": \"grpc\", \"service_name\": \"grpc\" } }," && local NODE_REPLACE+="\" ${NODE_NAME[20]} ${NODE_TAG[9]}\","
+
+  local PC_TEMPLATE=$(wget --no-check-certificate -qO- --tries=3 --timeout=2 ${GH_PROXY}${SUBSCRIBE_TEMPLATE}/sing-box-pc)
+  local PHONE_TEMPLATE=$(wget --no-check-certificate -qO- --tries=3 --timeout=2 ${GH_PROXY}${SUBSCRIBE_TEMPLATE}/sing-box-phone)
+  echo $PC_TEMPLATE | sed "s#\"<INBOUND_REPLACE>\",#$INBOUND_REPLACE#; s#\"<NODE_REPLACE>\"#${NODE_REPLACE%,}#g" | jq > $WORK_DIR/subscribe/sing-box-pc
+  echo $PHONE_TEMPLATE | sed "s#\"<INBOUND_REPLACE>\",#$INBOUND_REPLACE#; s#\"<NODE_REPLACE>\"#${NODE_REPLACE%,}#g" | jq > $WORK_DIR/subscribe/sing-box-phone
+
+  # 生成二维码 url 文件
+  cat > $WORK_DIR/subscribe/qr <<EOF
+V2rayN $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/v2rayn
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/v2rayn)
+
+*******************************************
+
+Nekobox $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/neko
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/neko)
+
+*******************************************
+
+Shadowrocket $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/shadowrocket
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/shadowrocket)
+EOF
+
   # 生成配置文件
   cat > $WORK_DIR/list << EOF
 *******************************************
@@ -1237,17 +1475,17 @@ EOF
   [ -n "$PORT_XTLS_REALITY" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "vless://${UUID[11]}@${SERVER_IP_1}:${PORT_XTLS_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[11]}&fp=chrome&pbk=${REALITY_PUBLIC[11]}&type=tcp&headerType=none#${NODE_NAME[11]} ${NODE_TAG[0]}")
+$(info "vless://${UUID[11]}@${SERVER_IP_1}:${PORT_XTLS_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[11]}&fp=chrome&pbk=${REALITY_PUBLIC[11]}&type=tcp&headerType=none#${NODE_NAME[11]// /%20}%20${NODE_TAG[0]}")
 EOF
   [ -n "$PORT_HYSTERIA2" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "hysteria2://${UUID[12]}@${SERVER_IP_1}:${PORT_HYSTERIA2}?insecure=1#${NODE_NAME[12]} ${NODE_TAG[1]}")
+$(info "hysteria2://${UUID[12]}@${SERVER_IP_1}:${PORT_HYSTERIA2}?insecure=1#${NODE_NAME[12]// /%20}%20${NODE_TAG[1]}")
 EOF
   [ -n "$PORT_TUIC" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "tuic://${UUID[13]}:${TUIC_PASSWORD}@${SERVER_IP_1}:${PORT_TUIC}?alpn=h3&congestion_control=$TUIC_CONGESTION_CONTROL#${NODE_NAME[13]} ${NODE_TAG[2]}
+$(info "tuic://${UUID[13]}:${TUIC_PASSWORD}@${SERVER_IP_1}:${PORT_TUIC}?alpn=h3&congestion_control=$TUIC_CONGESTION_CONTROL#${NODE_NAME[13]// /%20}%20${NODE_TAG[2]}
 
 $(text 70)")
 EOF
@@ -1310,12 +1548,12 @@ EOF
   [ -n "$PORT_SHADOWSOCKS" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "ss://$(echo -n "$SHADOWSOCKS_METHOD:${UUID[15]}@${SERVER_IP_1}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]} ${NODE_TAG[4]}")
+$(info "ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}@${SERVER_IP_1}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]// /%20}%20${NODE_TAG[4]}")
 EOF
   [ -n "$PORT_TROJAN" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "trojan://$TROJAN_PASSWORD@${SERVER_IP_1}:$PORT_TROJAN?security=tls&type=tcp&headerType=none#${NODE_NAME[16]} ${NODE_TAG[5]}
+$(info "trojan://$TROJAN_PASSWORD@${SERVER_IP_1}:$PORT_TROJAN?security=tls&type=tcp&headerType=none#${NODE_NAME[16]// /%20}%20${NODE_TAG[5]}
 
 $(text 70)")
 EOF
@@ -1329,19 +1567,19 @@ EOF
   [ -n "$PORT_VLESS_WS" ] && WS_SERVER_IP=${WS_SERVER_IP[18]} && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "vless://${UUID[18]}@${CDN[18]}:443?encryption=none&security=tls&sni=$VLESS_HOST_DOMAIN&type=ws&host=$VLESS_HOST_DOMAIN&path=%2F$VLESS_WS_PATH%3Fed%3D2048#${NODE_NAME[18]} ${NODE_TAG[7]}
+$(info "vless://${UUID[18]}@${CDN[18]}:443?encryption=none&security=tls&sni=$VLESS_HOST_DOMAIN&type=ws&host=$VLESS_HOST_DOMAIN&path=%2F$VLESS_WS_PATH%3Fed%3D2048#${NODE_NAME[18]// /%20}%20${NODE_TAG[7]}
 
 $(text 52)")
 EOF
   [ -n "$PORT_H2_REALITY" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "vless://${UUID[19]}@${SERVER_IP_1}:${PORT_H2_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[19]}&fp=chrome&pbk=${REALITY_PUBLIC[19]}&type=http#${NODE_NAME[19]} ${NODE_TAG[8]}")
+$(info "vless://${UUID[19]}@${SERVER_IP_1}:${PORT_H2_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[19]}&fp=chrome&pbk=${REALITY_PUBLIC[19]}&type=http#${NODE_NAME[19]// /%20}%20${NODE_TAG[8]}")
 EOF
   [ -n "$PORT_GRPC_REALITY" ] && cat >> $WORK_DIR/list << EOF
 
 ----------------------------
-$(info "vless://${UUID[20]}@${SERVER_IP_1}:${PORT_GRPC_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[20]}&fp=chrome&pbk=${REALITY_PUBLIC[20]}&type=grpc&serviceName=grpc&mode=gun#${NODE_NAME[20]} ${NODE_TAG[9]}")
+$(info "vless://${UUID[20]}@${SERVER_IP_1}:${PORT_GRPC_REALITY}?encryption=none&security=reality&sni=${TLS_SERVER[20]}&fp=chrome&pbk=${REALITY_PUBLIC[20]}&type=grpc&serviceName=grpc&mode=gun#${NODE_NAME[20]// /%20}%20${NODE_TAG[9]}")
 EOF
 
   cat >> $WORK_DIR/list << EOF
@@ -1356,7 +1594,7 @@ EOF
 EOF
   [ -n "$PORT_XTLS_REALITY" ] && cat >> $WORK_DIR/list << EOF
 
-$(hint "vless://$(echo -n "auto:${UUID[11]}@${SERVER_IP_2}:${PORT_XTLS_REALITY}" | base64 -w0)?remarks=${NODE_NAME[11]}%20${NODE_TAG[0]}&obfs=none&tls=1&peer=${TLS_SERVER[11]}&mux=1&pbk=${REALITY_PUBLIC[11]}")
+$(hint "vless://$(echo -n "auto:${UUID[11]}@${SERVER_IP_2}:${PORT_XTLS_REALITY}" | base64 -w0)?remarks=${NODE_NAME[11]} ${NODE_TAG[0]}&obfs=none&tls=1&peer=${TLS_SERVER[11]}&mux=1&pbk=${REALITY_PUBLIC[11]}")
 EOF
   [ -n "$PORT_HYSTERIA2" ] && cat >> $WORK_DIR/list << EOF
 
@@ -1372,7 +1610,7 @@ $(hint "ss://$(echo -n "$SHADOWTLS_METHOD:$SHADOWTLS_PASSWORD@${SERVER_IP_2}:${P
 EOF
   [ -n "$PORT_SHADOWSOCKS" ] && cat >> $WORK_DIR/list << EOF
 
-$(hint "ss://$(echo -n "$SHADOWSOCKS_METHOD:${UUID[15]}@${SERVER_IP_2}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]}%20${NODE_TAG[4]}")
+$(hint "ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}@${SERVER_IP_2}:$PORT_SHADOWSOCKS" | base64 -w0)#${NODE_NAME[15]}%20${NODE_TAG[4]}")
 EOF
   [ -n "$PORT_TROJAN" ] && cat >> $WORK_DIR/list << EOF
 
@@ -1430,7 +1668,7 @@ $(info "- {name: \"${NODE_NAME[14]} ${NODE_TAG[3]}\", type: ss, server: ${SERVER
 EOF
   [ -n "$PORT_SHADOWSOCKS" ] && cat >> $WORK_DIR/list << EOF
 
-$(info "- {name: \"${NODE_NAME[15]} ${NODE_TAG[4]}\", type: ss, server: ${SERVER_IP}, port: $PORT_SHADOWSOCKS, cipher: $SHADOWSOCKS_METHOD, password: \"${UUID[15]}\", smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }")
+$(info "- {name: \"${NODE_NAME[15]} ${NODE_TAG[4]}\", type: ss, server: ${SERVER_IP}, port: $PORT_SHADOWSOCKS, cipher: ${SHADOWSOCKS_METHOD}, password: \"${UUID[15]}\", smux: { enabled: true, protocol: 'h2mux', padding: true, max-connections: '8', min-streams: '16', statistic: true, only-tcp: false } }")
 EOF
   [ -n "$PORT_TROJAN" ] && cat >> $WORK_DIR/list << EOF
 
@@ -1488,7 +1726,7 @@ nekoray://shadowsocks#$(echo -n "{\"_v\":0,\"method\":\"$SHADOWTLS_METHOD\",\"na
 EOF
   [ -n "$PORT_SHADOWSOCKS" ] && cat >> $WORK_DIR/list << EOF
 ----------------------------
-$(hint "ss://$(echo -n "$SHADOWSOCKS_METHOD:${UUID[15]}" | base64 -w0)@${SERVER_IP_1}:$PORT_SHADOWSOCKS#${NODE_NAME[15]} ${NODE_TAG[4]}")
+$(hint "ss://$(echo -n "${SHADOWSOCKS_METHOD}:${UUID[15]}" | base64 -w0)@${SERVER_IP_1}:$PORT_SHADOWSOCKS#${NODE_NAME[15]} ${NODE_TAG[4]}")
 EOF
   [ -n "$PORT_TROJAN" ] && cat >> $WORK_DIR/list << EOF
 ----------------------------
@@ -1634,7 +1872,7 @@ $(info "      {
         \"tag\": \"${NODE_NAME[15]} ${NODE_TAG[4]}\",
         \"server\": \"${SERVER_IP}\",
         \"server_port\": $PORT_SHADOWSOCKS,
-        \"method\": \"$SHADOWSOCKS_METHOD\",
+        \"method\": \"${SHADOWSOCKS_METHOD}\",
         \"password\": \"${UUID[14]}\",
         \"multiplex\": {
           \"enabled\": true,
@@ -1793,6 +2031,42 @@ EOF
 
   [ -n "$PORT_VLESS_WS" ] && WS_SERVER_IP=${WS_SERVER_IP[18]} && TYPE_HOST_DOMAIN=$VLESS_HOST_DOMAIN && TYPE_PORT_WS=$PORT_VLESS_WS && hint "\n $(text 52)" >> $WORK_DIR/list
 
+  cat >> $WORK_DIR/list << EOF
+
+*******************************************
+
+$(hint "Index:
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/
+
+QR code:
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/qr
+
+V2rayN $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/v2rayn")
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/v2rayn)
+
+$(hint "Nekobox $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/neko")
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/neko)
+
+$(hint "Clash $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/clash
+
+sing-box for pc $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/sing-box-pc
+
+sing-box for cellphone $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/sing-box-phone
+
+Shadowrocket $(text 80):
+http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/proxies")
+
+$(qrencode -s 10 -m 1 -t UTF8 <<< http://${SERVER_IP_1}:${PORT_NGINX}/${UUID_CONFIRM}/proxies)
+
+*******************************************
+EOF
 
   # 显示节点信息
   cat $WORK_DIR/list
@@ -1819,7 +2093,7 @@ change_start_port() {
   OLD_START_PORT=$(awk 'NR == 1 { min = $0 } { if ($0 < min) min = $0; count++ } END {print min}' <<< "$OLD_PORTS")
   OLD_CONSECUTIVE_PORTS=$(awk 'END { print NR }' <<< "$OLD_PORTS")
   enter_start_port $OLD_CONSECUTIVE_PORTS
-  systemctl stop sing-box
+  cmd_systemctl stop sing-box
   for ((a=0; a<$OLD_CONSECUTIVE_PORTS; a++)) do
     [ -s $WORK_DIR/conf/${CONF_FILES[a]} ] && sed -i "s/\(.*listen_port.*:\)$((OLD_START_PORT+a))/\1$((START_PORT+a))/" $WORK_DIR/conf/*
   done
@@ -1900,15 +2174,15 @@ change_protocols() {
     done
   done
 
-  systemctl stop sing-box
+  cmd_systemctl stop sing-box
 
   # 获取各节点信息
   fetch_nodes_value
 
   # 用于新节点的配置信息
-  UUID=$(awk '{print $1}' <<< "${UUID[@]} $TROJAN_PASSWORD")
+  UUID_CONFIRM=$(awk '{print $1}' <<< "${UUID[@]} $TROJAN_PASSWORD")
   for v in "${NODE_NAME[@]}"; do
-    [ -n "$v" ] && NODE_NAME="$v" && break
+    [ -n "$v" ] && NODE_NAME_CONFIRM="$v" && break
   done
   [ "${#WS_SERVER_IP[@]}" -gt 0 ] && WS_SERVER_IP=$(awk '{print $1}' <<< "${WS_SERVER_IP[@]}") && CDN=$(awk '{print $1}' <<< "${CDN[@]}")
 
@@ -2038,7 +2312,11 @@ change_protocols() {
 # 卸载 Sing-box 全家桶
 uninstall() {
   if [ -d $WORK_DIR ]; then
-    [ "$SYSTEM" = 'Alpine' ] && systemctl stop sing-box 2>/dev/null || cmd_systemctl disable sing-box 2>/dev/null
+    if [ "$SYSTEM" = 'Alpine' ]; then
+      cmd_systemctl stop sing-box 2>/dev/null
+    else
+      cmd_systemctl disable sing-box 2>/dev/null
+    fi
     rm -rf $WORK_DIR $TEMP_DIR /etc/systemd/system/sing-box.service /usr/bin/sb
     info "\n $(text 16) \n"
   else
@@ -2059,10 +2337,11 @@ version() {
 
   if [ "${UPDATE,,}" = 'y' ]; then
     check_system_info
-    wget --no-check-certificate -c https://${GH_PROXY}github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
+    wget --no-check-certificate -c ${GH_PROXY}https://github.com/SagerNet/sing-box/releases/download/v$ONLINE/sing-box-$ONLINE-linux-$SING_BOX_ARCH.tar.gz -qO- | tar xz -C $TEMP_DIR sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box
 
     if [ -s $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box ]; then
-      systemctl stop sing-box
+      cmd_systemctl stop sing-box
+      rm -f /etc/local.d/$APP.start
       chmod +x $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box && mv $TEMP_DIR/sing-box-$ONLINE-linux-$SING_BOX_ARCH/sing-box $WORK_DIR/sing-box
       systemctl start sing-box && sleep 2 && [ "$(systemctl is-active sing-box)" = 'active' ] && info " Sing-box $(text 28) $(text 37)" || error "Sing-box $(text 28) $(text 38) "
     else
@@ -2074,7 +2353,7 @@ version() {
 # 判断当前 Sing-box 的运行状态，并对应的给菜单和动作赋值
 menu_setting() {
   if [[ "$STATUS" =~ $(text 27)|$(text 28) ]]; then
-    # 查进程号，sing-box 运行时长 和 内存占用
+    # 查进程号，sing-box 运行时长和内存占用
     if [ "$STATUS" = "$(text 28)" ]; then
       if [ "$SYSTEM" = 'Alpine' ]; then
         PID=$(pidof sing-box | sed -n 1p)
@@ -2085,6 +2364,7 @@ menu_setting() {
       fi
       MEMORY_USAGE="$(awk '/VmRSS/{printf "%.1f\n", $2/1024}' /proc/$PID/status)"
     fi
+
     NOW_PORTS=$(awk -F ':|,' '/listen_port/{print $2}' $WORK_DIR/conf/*)
     NOW_START_PORT=$(awk 'NR == 1 { min = $0 } { if ($0 < min) min = $0; count++ } END {print min}' <<< "$NOW_PORTS")
     NOW_CONSECUTIVE_PORTS=$(awk 'END { print NR }' <<< "$NOW_PORTS")
@@ -2154,6 +2434,7 @@ menu() {
   fi
 }
 
+check_cdn
 statistics_of_run-times
 
 # 传参
